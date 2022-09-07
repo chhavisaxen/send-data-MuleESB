@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="40d71dc2-b02b-4e96-9b72-0cfaa13d53a1" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:listener-config name="HTTP_Listener_config1" doc:name="HTTP Listener config" doc:id="a25e83ef-5512-4c57-b7f2-26e2562d5de7" basePath="/getTimeZoneInfo" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="c7446acd-86ef-401d-9056-4151c0b4509e" basePath="/api/" >
+		<http:request-connection host="worldtimeapi.org" port="80" />
+	</http:request-config>
+	<flow name="error-handling-demoFlow1" doc:id="7f5e60e9-d36b-4e39-ae9b-ddb04194070a" >
+		<http:listener doc:name="Listener" doc:id="09984db3-4f32-45f8-aef8-af9c597b985f" config-ref="HTTP_Listener_config1" path="/{region}/{city}">
+			<http:error-response >
+				<http:body ><![CDATA[#[output text/plain --- 
+payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="56125f43-fc73-4830-9e8f-09547c50d252" message="#[(attributes.uriParams.region default '') ++ (attributes.uriParams.city default '')]"/>
+		<http:request method="GET" doc:name="Time Zone Request" doc:id="66e73cda-ad9d-400b-bfc2-e8346dda1fda" config-ref="HTTP_Request_configuration" path="/{region}/{city}">
+			<http:uri-params ><![CDATA[#[{
+	region:attributes.uriParams.region,
+	city:attributes.uriParams.city
+}]]]></http:uri-params>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="9596decf-467a-419d-bbca-69b4e76083c9" message="Enf Of Flow"/>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="1aa78c75-d376-475e-86a1-ff1345659b89" type="HTTP:NOT_FOUND">
+				<ee:transform doc:name="Transform Message" doc:id="160fe9f0-47cf-4635-8231-3f784eaa20ca" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message:"TimeZone details not found" ++ (error.description default"")
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+	<flow name="error-handling-demoFlow2" doc:id="92dff038-bb7a-4940-81fd-b2bac3c3d263" >
+		<set-variable value="#[attributes.uriParams.region]" doc:name="Region Variable" doc:id="ce92e5cb-0da8-4446-8a1c-23855cd64576" variableName="regionVar"/>
+		<set-variable value="#[attributes.uriParams.city]" doc:name="City Variable" doc:id="3907aa4f-6aaf-4c7d-a708-74526d41cce8" variableName="cityVar"/>
+		<logger level="INFO" doc:name="Logger" doc:id="73f13c15-8a78-441d-b1bc-77a9b26b8922" />
+	</flow>
+	<flow name="error-handling-demoFlow" doc:id="2b44f8d2-c384-4b53-9d37-4e55dcacc2e2" >
+		<http:listener doc:name="Listener" doc:id="5a410a40-8977-45d4-a54b-38808b4a543e" config-ref="HTTP_Listener_config" path="errors">
+			<http:response statusCode="#[vars.httpStatus default 500]" />
+		</http:listener>
+		<set-payload value="#[payload]" doc:name="Set Payload" doc:id="6e9b384e-a106-49f9-9a77-a10318d6dfa3" />
+		<validation:is-number numberType="INTEGER" doc:name="Is number" doc:id="79254869-d6c0-4918-8f0d-a034b6b88f51" value="#[payload]"/>
+		<set-payload value="after validation" doc:name="Set Payload" doc:id="166338bc-6a59-4879-9b81-2e42be0a023f" />
+		<error-handler>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="bd3d04cc-4af9-400c-b237-6b29d61c86ec" >
+				<logger level="INFO" doc:name="Logger" doc:id="571ad680-021f-4f83-a4c4-f0b5399f04c0" message="in validation error"/>
+				<set-payload value="in on error continue!!!" doc:name="Set Payload" doc:id="855485da-6514-424b-8e01-84b8bf5c9323" />
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>
